@@ -26,9 +26,8 @@ func _on_stun_client_message_received(response: StunClient.Message, request: Stu
 	else:
 		print ("Other message type: %s" % response.type)
 	
-	print ("Attributes:")
 	for attr in response.attributes:
-		print ("%s = %s" % [attr.type, attr.data])
+		print (attr)
 
 func _process(delta: float) -> void:
 	stun_client.poll()
