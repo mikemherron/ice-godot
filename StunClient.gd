@@ -2,15 +2,9 @@ extends Node
 
 # STUN: https://datatracker.ietf.org/doc/html/rfc8489
 
-# See: https://www.iana.org/assignments/stun-parameters/stun-parameters.xhtml#stun-parameters-2
-enum MessageType {
-	BINDING_REQUEST = 0x0001,
-	BINDING_SUCCESS = 0x0101,
-	BINDING_ERROR   = 0x0111,
-}
-
 const MAGIC_COOKIE = 0x2112a442
 
+# 96-bit transaction id.
 class TxnId:
 	var bytes := []
 	
@@ -57,7 +51,7 @@ class TxnId:
 		return value
 
 #####
-# STUN ATTRIBUTES
+# ATTRIBUTES
 # ===============
 # See: https://www.iana.org/assignments/stun-parameters/stun-parameters.xhtml#stun-parameters-4
 #####
@@ -234,6 +228,17 @@ var attribute_classes := {
 	FingerprintAttribute.TYPE: FingerprintAttribute,
 	ResponseOriginAttribute.TYPE: ResponseOriginAttribute,
 	OtherAddressAttribute.TYPE: OtherAddressAttribute,
+}
+
+#####
+# MESSAGE:
+#####
+
+# See: https://www.iana.org/assignments/stun-parameters/stun-parameters.xhtml#stun-parameters-2
+enum MessageType {
+	BINDING_REQUEST = 0x0001,
+	BINDING_SUCCESS = 0x0101,
+	BINDING_ERROR   = 0x0111,
 }
 
 class Message:
