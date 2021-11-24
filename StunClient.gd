@@ -2,12 +2,14 @@ extends Node
 
 # STUN: https://datatracker.ietf.org/doc/html/rfc8489
 
+# See: https://www.iana.org/assignments/stun-parameters/stun-parameters.xhtml#stun-parameters-2
 enum MessageType {
 	BINDING_REQUEST = 0x0001,
 	BINDING_SUCCESS = 0x0101,
 	BINDING_ERROR   = 0x0111,
 }
 
+# See: https://www.iana.org/assignments/stun-parameters/stun-parameters.xhtml#stun-parameters-4
 enum AttributeType {
 	UNKNOWN                  = 0x0000,
 	MAPPED_ADDRESS           = 0x0001,
@@ -27,6 +29,7 @@ enum AttributeType {
 	ALTERNATE_SERVER         = 0x8023,
 	FINGERPRINT              = 0x8028,
 	RESPONSE_ORIGIN          = 0x802b,
+	OTHER_ADDRESS            = 0x802c,
 }
 
 const MAGIC_COOKIE = 0x2112a442
@@ -71,9 +74,9 @@ static func _bytes_to_int(bytes: Array) -> int:
 	var value := 0
 	for i in range(count):
 		if shift > 0:
-			value = value & (bytes[i] << shift)
+			value = value | (bytes[i] << shift)
 		else:
-			value = value & bytes[i]
+			value = value | bytes[i]
 		shift -= 8
 	return value
 
@@ -183,23 +186,23 @@ static func _parse_xor_address_attribute(attr: Attribute, buffer: StreamPeerBuff
 	if attr.data['family'] == 0x01:
 		var ip = buffer.get_u32() ^ MAGIC_COOKIE
 		attr.data['ip'] = "%d.%d.%d.%d" % [
-			ip >> 24,
+			(ip >> 24) & 0xff,
 			(ip >> 16) & 0xff,
 			(ip >> 8) & 0xff,
 			ip & 0xff,
 		]
 	else:
 		var tb = _txn_id_to_bytes(txn_id)
-		var high_mask = ((MAGIC_COOKIE << 32) & _bytes_to_int(tb.slice(0, 4)))
-		var low_mask = _bytes_to_int(tb.slice(4, 12))
+		var high_mask = ((MAGIC_COOKIE << 32) | _bytes_to_int(tb.slice(0, 3)))
+		var low_mask = _bytes_to_int(tb.slice(4, 11))
 		var high_value = buffer.get_u64() ^ high_mask
 		var low_value = buffer.get_u64() ^ low_mask
 		attr.data['ip'] = "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x" % [
-			high_value >> 48,
+			(high_value >> 48) & 0xffff,
 			(high_value >> 32) & 0xffff,
 			(high_value >> 16) & 0xffff,
 			high_value & 0xffff,
-			low_value >> 48,
+			(low_value >> 48) & 0xffff,
 			(low_value >> 32) & 0xffff,
 			(low_value >> 16) & 0xffff,
 			low_value & 0xffff,
@@ -227,6 +230,9 @@ static func _parse_attribute(buffer: StreamPeerBuffer, txn_id: String) -> Attrib
 			_parse_xor_address_attribute(attr, buffer, txn_id)
 		
 		AttributeType.RESPONSE_ORIGIN:
+			_parse_address_attribute(attr, buffer)
+		
+		AttributeType.OTHER_ADDRESS:
 			_parse_address_attribute(attr, buffer)
 		
 		AttributeType.SOFTWARE:
