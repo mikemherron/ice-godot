@@ -90,13 +90,14 @@ class Attribute:
 
 class UnknownAttribute extends Attribute:
 	var data: PoolByteArray
-	var size: int
 	
 	func _init(type: int).(type, 'UNKNOWN'):
 		pass
 	
-	func read_from_buffer(buffer: StreamPeerBuffer, _size: int, msg: Message) -> void:
-		size = _size
+	func to_string() -> String:
+		return str(data)
+	
+	func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: Message) -> void:
 		data = buffer.get_data(size)[1]
 		_skip_padding(buffer, size)
 
