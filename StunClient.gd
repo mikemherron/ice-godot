@@ -18,7 +18,10 @@ class TxnId:
 		bytes = _bytes
 	
 	func to_string() -> String:
-		return "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"
+		return "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x" % bytes
+	
+	func _to_string() -> String:
+		return to_string()
 	
 	static func from_string(s: String) -> TxnId:
 		var bytes := []
@@ -241,6 +244,18 @@ class Message:
 	func _init(_type: int, _txn_id: TxnId) -> void:
 		type = _type
 		txn_id = _txn_id
+	
+	func _to_string() -> String:
+		var s: String
+		if txn_id:
+			s = 'StunMessage(type=0x%04x, txn_id=%s)' % [type, txn_id]
+		else:
+			s = 'StunMessage(type=0x%04x)' % type
+		if attributes.size() > 0:
+			s += ':'
+			for attr in attributes:
+				s += "\n  " + str(attr)
+		return s
 
 var _peer := PacketPeerUDP.new()
 var _txns: Dictionary
