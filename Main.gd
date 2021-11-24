@@ -23,6 +23,12 @@ func _on_stun_client_message_received(response: StunClient.Message, request: Stu
 	print (request)
 	print ("\n--\n\nRESPONSE:\n")
 	print (response)
+	
+	# Test round-tripping the response data.
+	print ("\n--\n\nWRITE AND LOAD AGAIN:\n")
+	var bytes = response.to_bytes()
+	var response2 = StunClient.Message.from_bytes(bytes, stun_client.attribute_classes)
+	print (response2)
 
 func _process(delta: float) -> void:
 	stun_client.poll()

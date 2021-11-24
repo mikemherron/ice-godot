@@ -69,11 +69,17 @@ class Attribute:
 		if remainder > 0:
 			buffer.seek(buffer.get_position() + remainder)
 	
+	static func _write_padding(buffer: StreamPeerBuffer, size: int) -> void:
+		var remainder = size % 4
+		while remainder > 0:
+			buffer.put_u8(0)
+			remainder -= 1
+	
 	func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: Message) -> void:
 		buffer.seek(buffer.get_position() + size)
 		_skip_padding(buffer, size)
 	
-	func write_to_buffer(buffer: StreamPeerBuffer) -> void:
+	func write_to_buffer(buffer: StreamPeerBuffer, msg: Message) -> void:
 		pass
 	
 	func to_string() -> String:
@@ -97,6 +103,12 @@ class UnknownAttribute extends Attribute:
 	func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: Message) -> void:
 		data = buffer.get_data(size)[1]
 		_skip_padding(buffer, size)
+	
+	func write_to_buffer(buffer: StreamPeerBuffer, msg: Message) -> void:
+		buffer.put_u16(type)
+		buffer.put_u16(data.size())
+		buffer.put_data(data)
+		_write_padding(buffer, data.size())
 
 enum AddressFamily {
 	UNKNOWN = 0x00,
@@ -143,6 +155,50 @@ class _AddressAttribute extends Attribute:
 				buffer.get_u16(),
 				buffer.get_u16(),
 			]
+	
+	func _parse_ipv4() -> int:
+		var parts := ip.split('.')
+		if parts.size() != 4:
+			return 0
+		
+		var bytes := []
+		for part in parts:
+			bytes.append(part.to_int() & 0xff)
+		return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[2]
+	
+	# Returns two 64-bit numbers.
+	func _parse_ipv6() -> Array:
+		# @todo IPv6 can omit parts - handle that!
+		var parts := ip.split(':')
+		if parts.size() != 8:
+			return [0, 0]
+		
+		var byte_pairs := []
+		for part in parts:
+			byte_pairs.append(("0x" + part).hex_to_int() & 0xffff)
+		
+		var high_value = (byte_pairs[0] << 48) | (byte_pairs[1] << 32) | (byte_pairs[2] << 16) | (byte_pairs[3])
+		var low_value = (byte_pairs[4] << 48) | (byte_pairs[5] << 32) | (byte_pairs[6] << 16) | (byte_pairs[7])
+		return [high_value, low_value]
+	
+	func _write_type_and_size(buffer: StreamPeerBuffer, msg: Message) -> void:
+		buffer.put_u16(type)
+		var size := 0
+		if family == AddressFamily.IPV4:
+			size = 4
+		elif family == AddressFamily.IPV6:
+			size = 16
+		buffer.put_u16(size + 2)
+	
+	func write_to_buffer(buffer: StreamPeerBuffer, msg: Message) -> void:
+		_write_type_and_size(buffer, msg)
+		buffer.put_u16(family)
+		buffer.put_u16(port)
+		if family == AddressFamily.IPV4:
+			buffer.put_u32(_parse_ipv4())
+		elif family == AddressFamily.IPV6:
+			for value in _parse_ipv6():
+				buffer.put_u64(value)
 
 class _XorAddressAttribute extends _AddressAttribute:
 	func _init(_type: int, _name: String).(_type, _name): pass
@@ -173,6 +229,20 @@ class _XorAddressAttribute extends _AddressAttribute:
 				(low_value >> 16) & 0xffff,
 				low_value & 0xffff,
 			]
+	
+	func write_to_buffer(buffer: StreamPeerBuffer, msg: Message) -> void:
+		_write_type_and_size(buffer, msg)
+		buffer.put_u16(family)
+		buffer.put_u16(port ^ (MAGIC_COOKIE >> 16))
+		if family == AddressFamily.IPV4:
+			var ip_value := _parse_ipv4()
+			buffer.put_u32(ip_value ^ MAGIC_COOKIE)
+		elif family == AddressFamily.IPV6:
+			var ip_value := _parse_ipv6()
+			var high_mask = ((MAGIC_COOKIE << 32) | msg.txn_id.slice_to_int(0, 3))
+			var low_mask = msg.txn_id.slice_to_int(4, 11)
+			buffer.put_u64(ip_value[0] ^ high_mask)
+			buffer.put_u64(ip_value[0] ^ low_mask)
 
 class MappedAddressAttribute extends _AddressAttribute:
 	const TYPE = 0x0001
@@ -197,6 +267,13 @@ class SoftwareAttribute extends Attribute:
 	func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: Message) -> void:
 		description = buffer.get_data(size)[1].get_string_from_utf8()
 		_skip_padding(buffer, size)
+	
+	func write_to_buffer(buffer: StreamPeerBuffer, msg: Message) -> void:
+		buffer.put_u16(type)
+		var bytes = description.to_utf8()
+		buffer.put_u16(bytes.size())
+		buffer.put_data(bytes)
+		_write_padding(buffer, bytes.size())
 
 class FingerprintAttribute extends Attribute:
 	const TYPE = 0x8028
@@ -210,6 +287,11 @@ class FingerprintAttribute extends Attribute:
 	
 	func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: Message) -> void:
 		fingerprint = buffer.get_u32()
+	
+	func write_to_buffer(buffer: StreamPeerBuffer, msg: Message) -> void:
+		buffer.put_u16(type)
+		buffer.put_u16(4)
+		buffer.put_u32(fingerprint)
 
 class ResponseOriginAttribute extends _AddressAttribute:
 	const TYPE = 0x802b
@@ -261,6 +343,68 @@ class Message:
 			for attr in attributes:
 				s += "\n  " + str(attr)
 		return s
+	
+	func to_bytes() -> PoolByteArray:
+		var buffer := StreamPeerBuffer.new()
+		buffer.big_endian = true
+		
+		buffer.put_u16(type)
+		# This is the size - just put 0 for now.
+		buffer.put_u16(0)
+		buffer.put_u32(MAGIC_COOKIE)
+		
+		# Write the transaction id.
+		for byte in txn_id.bytes:
+			buffer.put_u8(byte)
+		
+		for attr in attributes:
+			attr.write_to_buffer(buffer, self)
+		
+		# Write the size in now that we know it.
+		buffer.seek(2)
+		buffer.put_u16(buffer.get_size() - 20)
+		
+		return buffer.data_array
+	
+	static func from_bytes(bytes: PoolByteArray, attribute_classes = null) -> Message:
+		var buffer := StreamPeerBuffer.new()
+		buffer.big_endian = true
+		buffer.put_data(bytes)
+		buffer.seek(0)
+		
+		var type = buffer.get_u16()
+		var size = buffer.get_u16()
+		
+		var magic_cookie = buffer.get_u32()
+		if magic_cookie != MAGIC_COOKIE:
+			push_error("Magic cookie doesn't match the expected value")
+			return null
+		
+		var msg = Message.new(type, TxnId.read_from_buffer(buffer))
+		
+		# Parse the attributes.
+		if attribute_classes:
+			while buffer.get_position() < buffer.get_size():
+				var attr = _parse_attribute(buffer, attribute_classes, msg)
+				if attr:
+					msg.attributes.append(attr)
+		
+		return msg
+	
+	static func _parse_attribute(buffer: StreamPeerBuffer, attribute_classes: Dictionary, msg: Message) -> Attribute:
+		var type := buffer.get_u16()
+		var size := buffer.get_u16()
+		if buffer.get_position() + size > buffer.get_size():
+			size = buffer.get_size() - buffer.get_position()
+		
+		var attr: Attribute
+		if attribute_classes.has(type):
+			attr = attribute_classes[type].new()
+		else:
+			attr = UnknownAttribute.new(type)
+		
+		attr.read_from_buffer(buffer, size, msg)
+		return attr
 
 var _peer := PacketPeerUDP.new()
 var _txns: Dictionary
@@ -271,25 +415,8 @@ func _init(ip: String, port: int) -> void:
 	_peer.connect_to_host(ip, port)
 
 func send_message(msg: Message) -> void:
-	var buffer := StreamPeerBuffer.new()
-	buffer.big_endian = true
-	buffer.resize(20)
-	
-	buffer.put_u16(msg.type)
-	
-	# @todo This is the size of the message after the header - put 0 for now
-	buffer.put_u16(0)
-	
-	buffer.put_u32(MAGIC_COOKIE)
-	
-	# Write the transaction id.
-	for byte in msg.txn_id.bytes:
-		buffer.put_u8(byte)
-	
-	# @todo Actually write the attributes
-	
 	_txns[msg.txn_id.to_string()] = msg
-	_peer.put_packet(buffer.data_array)
+	_peer.put_packet(msg.to_bytes())
 
 func poll() -> void:
 	while true:
@@ -297,53 +424,15 @@ func poll() -> void:
 		if not data:
 			return
 		
-		var buffer := StreamPeerBuffer.new()
-		buffer.big_endian = true
-		buffer.put_data(data)
-		buffer.seek(0)
-		
-		var type = buffer.get_u16()
-		var size = buffer.get_u16()
-		
-		var magic_cookie = buffer.get_u32()
-		if magic_cookie != MAGIC_COOKIE:
-			push_error("Magic cookie doesn't match the expected value")
+		var response := Message.from_bytes(data, attribute_classes)
+		if not response:
 			continue
 		
-		var txn_id := TxnId.read_from_buffer(buffer)
-		var txn_id_string := txn_id.to_string()
-		
+		var txn_id_string := response.txn_id.to_string()
 		var request: Message = _txns.get(txn_id_string)
-		if request == null:
-			push_warning("Received response with unknown transaction id: %s" % txn_id)
-		else:
-			_txns.erase(txn_id_string)
-		
-		var response = Message.new(type, txn_id)
-		
-		# Parse the attributes.
-		while buffer.get_position() < buffer.get_size():
-			var attr = _parse_attribute(buffer, response)
-			if attr:
-				response.attributes.append(attr)
+		_txns.erase(txn_id_string)
 		
 		emit_signal("message_received", response, request)
-
-func _parse_attribute(buffer: StreamPeerBuffer, msg: Message) -> Attribute:
-	var type := buffer.get_u16()
-	var size := buffer.get_u16()
-	var orig_size := size
-	if buffer.get_position() + size > buffer.get_size():
-		size = buffer.get_size() - buffer.get_position()
-	
-	var attr: Attribute
-	if attribute_classes.has(type):
-		attr = attribute_classes[type].new()
-	else:
-		attr = UnknownAttribute.new(type)
-	
-	attr.read_from_buffer(buffer, size, msg)
-	return attr
 
 func send_binding_request() -> void:
 	var msg = Message.new(MessageType.BINDING_REQUEST, TxnId.new_random())
