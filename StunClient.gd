@@ -205,10 +205,17 @@ static func _parse_xor_address_attribute(attr: Attribute, buffer: StreamPeerBuff
 			low_value & 0xffff,
 		]
 
+static func _skip_padding(buffer: StreamPeerBuffer, size: int) -> void:
+	var remainder = size % 4
+	if remainder > 0:
+		buffer.seek(buffer.get_position() + remainder)
+
 static func _parse_attribute(buffer: StreamPeerBuffer, txn_id: String) -> Attribute:
-	var type = buffer.get_u16()
-	var size = buffer.get_u16()
-	var length = size if buffer.get_size() > buffer.get_position() + size else buffer.get_size() - buffer.get_position()
+	var type := buffer.get_u16()
+	var size := buffer.get_u16()
+	var orig_size := size
+	if buffer.get_position() + size > buffer.get_size():
+		size = buffer.get_size() - buffer.get_position()
 	
 	var attr := Attribute.new(type)
 	
@@ -223,12 +230,18 @@ static func _parse_attribute(buffer: StreamPeerBuffer, txn_id: String) -> Attrib
 			_parse_address_attribute(attr, buffer)
 		
 		AttributeType.SOFTWARE:
-			attr.data['software'] = buffer.get_data(length)[1].get_string_from_utf8()
+			attr.data['software'] = buffer.get_data(size)[1].get_string_from_utf8()
+			_skip_padding(buffer, size)
+		
+		AttributeType.FINGERPRINT:
+			attr.data['fingerprint'] = buffer.get_u32()
 		
 		_:
 			attr.type = AttributeType.UNKNOWN
 			attr.data['type'] = type
-			attr.data['data'] = buffer.get_data(length)[1]
+			attr.data['data'] = buffer.get_data(size)[1]
+			attr.data['size'] = orig_size
+			_skip_padding(buffer, size)
 	
 	return attr
 
