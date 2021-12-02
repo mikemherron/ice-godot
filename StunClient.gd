@@ -1,4 +1,4 @@
-extends Node
+extends Reference
 
 # STUN: https://datatracker.ietf.org/doc/html/rfc8489
 
