@@ -6,21 +6,27 @@
 ;   [section] ; section goes between []
 ;   param=value ; assign values to parameters
 
-config_version=4
+config_version=5
 
 [application]
 
-config/name="ICE"
-run/main_scene="res://Main.tscn"
-config/icon="res://icon.png"
+config/name="StunTurn"
+run/main_scene="res://Test.tscn"
+config/features=PackedStringArray("4.0", "GL Compatibility")
+config/icon="res://icon.svg"
 
-[physics]
+[autoload]
 
-common/enable_pause_aware_picking=true
+Stun="*res://Ice/Stun.gd"
+
+[debug]
+
+gdscript/warnings/unused_variable=0
+gdscript/warnings/shadowed_variable=0
+gdscript/warnings/unused_private_class_variable=0
+gdscript/warnings/unused_parameter=0
 
 [rendering]
 
-quality/driver/driver_name="GLES2"
-vram_compression/import_etc=true
-vram_compression/import_etc2=false
-environment/default_environment="res://default_env.tres"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
