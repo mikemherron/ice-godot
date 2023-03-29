@@ -15,10 +15,6 @@ run/main_scene="res://Test.tscn"
 config/features=PackedStringArray("4.0", "GL Compatibility")
 config/icon="res://icon.svg"
 
-[autoload]
-
-Stun="*res://Ice/Stun.gd"
-
 [debug]
 
 gdscript/warnings/unused_variable=0
