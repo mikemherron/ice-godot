@@ -3,11 +3,16 @@ extends RefCounted
 class_name TurnClient
 
 ## TODO
+#  More generic mechanism for retrying, limitnig and timing out requests (allocate, refresh)?
+#  Handle nonce updating on refresh
 #  Time out allocation requests / retry requests
+#  Just make this a node to avoid clients having to call poll?
+#  Proper error handling as per - https://www.rfc-editor.org/rfc/rfc8656#section-7.4
 #  Change allocaiton error signal to include self error code (so can indicate non-response errors)
-#  Refresh requests
 #  Support lifetime specification in allocate
 #  Investigate why PION error strings are not coming back in error responses
+
+const REFRESH_THRESHOLD = 60
 
 signal allocate_success
 signal allocate_error
@@ -22,6 +27,7 @@ enum State {
 var _username : String 
 var _password : String 
 var _realm : String 
+var _nonce : String
 
 var _hmac_key : PackedByteArray
 
@@ -43,14 +49,29 @@ func _init(ip: String, port: int, username : String, password : String, realm : 
 	
 	_hmac_key = ("%s:%s:%s" % [_username, _realm, _password]).md5_buffer()
 
-func poll() -> void:
+func poll(delta : float) -> void:
 	_peer.poll()
-
+	if _state == State.AllocationActive:
+		_remaining_lifetime -= delta
+		if _remaining_lifetime < REFRESH_THRESHOLD:
+			_send_refresh()
+	
 func send_allocate_request() -> void:
 	if _state != State.Idle:
 		return push_error("allocate request already sent")
 	_state = State.AllocationRequested
 	_peer.send_message(StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random()))
+
+func _send_refresh() -> void:
+	var msg := StunMessage.new(StunMessage.Type.REFRESH_REQUEST, StunTxnId.new_random())
+	msg.attributes.append(StunAttributeRealm.new(_realm))
+	msg.attributes.append(StunAttributeNonce.new(_nonce))
+	msg.attributes.append(StunAttributeUsername.new(_username))
+	
+	var msg_integrity_attr := StunAttributeMessageIntegrity.for_message(_hmac_key, msg)
+	msg.attributes.append(msg_integrity_attr)
+
+	_peer.send_message(msg)
 
 func _handle_message_received(res: StunMessage, req : StunMessage) -> void:
 	match res.type:
@@ -58,6 +79,8 @@ func _handle_message_received(res: StunMessage, req : StunMessage) -> void:
 			_handle_allocate_success(res)
 		StunMessage.Type.ALLOCATE_ERROR:
 			_handle_allocate_error(res, req)
+		StunMessage.Type.REFRESH_SUCCESS:
+			_handle_refresh_success(res)
 
 func _handle_allocate_error(res: StunMessage, req : StunMessage) -> void:	
 	if !res.has_attribute(StunAttributeErrorCode.TYPE):
@@ -81,9 +104,12 @@ func _handle_allocate_error(res: StunMessage, req : StunMessage) -> void:
 		return push_error("allocation error response with invalid realm")
 
 	# Resend allocate with auth details and nonce from response
+	var nonce_attr : StunAttributeNonce = res.get_attribute(StunAttributeNonce.TYPE)
+	_nonce = nonce_attr.value
+
 	var msg = StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random())
 	msg.attributes.append(realm_attr)
-	msg.attributes.append(res.get_attribute(StunAttributeNonce.TYPE))
+	msg.attributes.append(nonce_attr)
 	msg.attributes.append(StunAttributeUsername.new(_username))
 	msg.attributes.append(StunAttributeRequestedTransport.new())
 	
@@ -108,3 +134,10 @@ func _handle_allocate_success(res: StunMessage) -> void:
 
 	_state = State.AllocationActive
 	emit_signal("allocate_success")
+
+func _handle_refresh_success(res: StunMessage) -> void:
+	var msg_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
+	if !msg_integrity_attr.verify(_hmac_key, res):
+		_state = State.AllocationError
+		return push_error("received refresh success response with invalid message integrity")
+	_remaining_lifetime = float(res.get_attribute(StunAttributeLifetime.TYPE).lifetime)

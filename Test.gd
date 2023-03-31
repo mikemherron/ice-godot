@@ -48,7 +48,7 @@ func _debug_message_received(response: StunMessage, request: StunMessage):
 	# print (response2)
 	
 func _process(_delta: float) -> void:
-	turn_client.poll()
+	turn_client.poll(_delta)
 	
 # func check_message(msg : Stun.Message) -> void:
 # 	var bytes : PackedByteArray = msg.to_bytes()

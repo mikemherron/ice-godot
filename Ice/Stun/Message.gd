@@ -13,7 +13,11 @@ enum Type {
 	
 	ALLOCATE_REQUEST  = 0x0003,
 	ALLOCATE_SUCCESS  = 0x0103,
-	ALLOCATE_ERROR	  = 0x0113
+	ALLOCATE_ERROR	  = 0x0113,
+
+	REFRESH_REQUEST		= 0x0004,
+	REFRESH_SUCCESS		= 0x0104,
+	REFRESH_ERROR			= 0x0114
 }
 
 static func from_bytes(bytes: PackedByteArray) -> StunMessage:
