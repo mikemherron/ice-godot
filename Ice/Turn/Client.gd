@@ -1,117 +1,110 @@
-extends StunClient
+extends RefCounted
 
 class_name TurnClient
 
 ## TODO
 #  Time out allocation requests / retry requests
-#  Refactor Stun base logic in to StunPacketPeer class, remove inheritance
-#  Move digest stuff in to Message integrity?
 #  Change allocaiton error signal to include self error code (so can indicate non-response errors)
 #  Refresh requests
 #  Support lifetime specification in allocate
 #  Investigate why PION error strings are not coming back in error responses
 
-signal allocate_success (request: StunMessage, response : StunMessage)
-signal allocate_error (request: StunMessage, response : StunMessage)
+signal allocate_success
+signal allocate_error
 
 enum State {
-	Idle, AllocateRequested, AllocationActive, AllocationError
+	Idle, 
+	AllocationRequested, 
+	AllocationActive, 
+	AllocationError
 }
 
 var _username : String 
 var _password : String 
 var _realm : String 
 
-var _crypto : Crypto
+var _hmac_key : PackedByteArray
+
 var _state : int = State.Idle
 
-var _relayed_transport_address : String 
-var _server_reflexive_address : String 
-var _remaining_lifetime : float 
+var _relayed_transport_address : StunAttributeAddress 
+var _server_reflexive_address : StunAttributeAddress
+var _remaining_lifetime : float
+
+var _peer : StunMessagePeer
 
 func _init(ip: String, port: int, username : String, password : String, realm : String):
-	super(ip, port)
+	_peer = StunMessagePeer.new(ip, port)
+	_peer.connect("message_received", self._handle_message_received)
+	
 	_username = username
 	_password = password
 	_realm = realm
-	_crypto = Crypto.new()
+	
+	_hmac_key = ("%s:%s:%s" % [_username, _realm, _password]).md5_buffer()
+
+func poll() -> void:
+	_peer.poll()
 
 func send_allocate_request() -> void:
 	if _state != State.Idle:
-		push_error("allocate request already sent")
-		return
-	_state = State.AllocateRequested
-	_send_message(StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random()))
+		return push_error("allocate request already sent")
+	_state = State.AllocationRequested
+	_peer.send_message(StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random()))
 
-func _send_allocate_auth_response(res : StunMessage) -> void:
-	# Based on the rules above, the hash used to construct MESSAGE-
-	# INTEGRITY includes the length field from the STUN message header.
-	# Prior to performing the hash, the MESSAGE-INTEGRITY attribute MUST be
-	# inserted into the message (with dummy content).  The length MUST then
-	# be set to point to the length of the message up to, and including,
-	# the MESSAGE-INTEGRITY attribute itself, but excluding any attributes
-	# after it.  Once the computation is performed, the value of the
-	# MESSAGE-INTEGRITY attribute can be filled in, and the value of the
-	# length in the STUN header can be set to its correct value -- the
-	# length of the entire message.  Similarly, when validating the
-	# MESSAGE-INTEGRITY, the length field should be adjusted to point to
-	# the end of the MESSAGE-INTEGRITY attribute prior to calculating the
-	# HMAC.  Such adjustment is necessary when attributes, such as
-	# FINGERPRINT, appear after MESSAGE-INTEGRITY.
+func _handle_message_received(res: StunMessage, req : StunMessage) -> void:
+	match res.type:
+		StunMessage.Type.ALLOCATE_SUCCESS:
+			_handle_allocate_success(res)
+		StunMessage.Type.ALLOCATE_ERROR:
+			_handle_allocate_error(res, req)
+
+func _handle_allocate_error(res: StunMessage, req : StunMessage) -> void:	
+	if !res.has_attribute(StunAttributeErrorCode.TYPE):
+		_state = State.AllocationError
+		return push_error("allocation error response with no error attribute")
+
+	# We already sent the username and still got an error, so can't recover
+	if req.has_attribute(StunAttributeUsername.TYPE):
+		_state = State.AllocationError
+		return push_error("allocation auth error response")
 	
-	var msg = StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random(), [
-		res.get_attribute(StunAttributeRealm.TYPE),
-		res.get_attribute(StunAttributeNonce.TYPE),
-		StunAttributeUsername.new(_username),
-		StunAttributeRequestedTransport.new()
-	])
-
-	var hmac_key : PackedByteArray = ("%s:%s:%s" % [_username, _realm, _password]).md5_buffer()
+	# For now, can't do anything about errors other than unauthenticated
+	var error : StunAttributeErrorCode = res.get_attribute(StunAttributeErrorCode.TYPE)
+	if error.code!=401:
+		_state = State.AllocationError
+		return push_error("allocation error code ", error.code)
 	
-	var hmac_digest : PackedByteArray = _crypto.hmac_digest(
-		HashingContext.HASH_SHA1, 
-		hmac_key, 
-		msg.to_bytes(24))
+	var realm_attr : StunAttributeRealm = res.get_attribute(StunAttributeRealm.TYPE)
+	if realm_attr == null || realm_attr.value != _realm:
+		_state = State.AllocationError
+		return push_error("allocation error response with invalid realm")
+
+	# Resend allocate with auth details and nonce from response
+	var msg = StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random())
+	msg.attributes.append(realm_attr)
+	msg.attributes.append(res.get_attribute(StunAttributeNonce.TYPE))
+	msg.attributes.append(StunAttributeUsername.new(_username))
+	msg.attributes.append(StunAttributeRequestedTransport.new())
 	
-	var integrity_attr = StunAttributeMessageIntegrity.new()
-	integrity_attr.hmac = hmac_digest
-	msg.attributes.append(integrity_attr)
-	_send_message(msg)
+	var mng_integrity_attr := StunAttributeMessageIntegrity.for_message(_hmac_key, msg)
+	msg.attributes.append(mng_integrity_attr)
+	
+	_peer.send_message(msg)
 
-func _handle_message_response(res: StunMessage, req : StunMessage) -> void:
-	super._handle_message_response(res, req)
-	if res.type == StunMessage.Type.ALLOCATE_SUCCESS:
-		# https://www.rfc-editor.org/rfc/rfc8656#section-7.3
-		# TODO - check address family as per spec
-		var _message_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
+func _handle_allocate_success(res: StunMessage) -> void:
+	if !res.has_attribute(StunAttributeMessageIntegrity.TYPE):
+		_state = State.AllocationError
+		return push_error("received allocate success response with no message integrity")
 
-		res.attributes.erase(_message_integrity_attr)
-		var hmac_key : PackedByteArray = ("%s:%s:%s" % [_username, _realm, _password]).md5_buffer()
-		var expected_digest : PackedByteArray = _crypto.hmac_digest(
-			HashingContext.HASH_SHA1,
-			hmac_key, 
-			res.to_bytes(24))
+	var msg_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
+	if !msg_integrity_attr.verify(_hmac_key, res):
+		_state = State.AllocationError
+		return push_error("received allocate success response with invalid message integrity")
+		
+	_relayed_transport_address = res.get_attribute(StunAttributeXorRelayedAddress.TYPE)
+	_server_reflexive_address = res.get_attribute(StunAttributeXorMappedAddress.TYPE)
+	_remaining_lifetime = float(res.get_attribute(StunAttributeLifetime.TYPE).lifetime)
 
-		if expected_digest != _message_integrity_attr.hmac:
-			push_error("received allocate success response with invalid message integrity, expected %s, got %s" % [expected_digest, _message_integrity_attr.hmac])
-			_state = State.AllocationError
-			return
-
-		var _relayed_address_attr : StunAttributeXorRelayedAddress = res.get_attribute(StunAttributeXorRelayedAddress.TYPE)
-		_relayed_transport_address = "%s:%d" % [ _relayed_address_attr.ip, _relayed_address_attr.port ]
-		var _mapped_address_attr : StunAttributeXorMappedAddress = res.get_attribute(StunAttributeXorMappedAddress.TYPE)
-		_server_reflexive_address = "%s:%d" % [ _mapped_address_attr.ip, _mapped_address_attr.port ]
-		_remaining_lifetime = float(res.get_attribute(StunAttributeLifetime.TYPE).lifetime)
-		_state = State.AllocationActive
-		emit_signal("allocate_success", req, res)
-	elif res.type == StunMessage.Type.ALLOCATE_ERROR:
-		if !res.has_attribute(StunAttributeErrorCode.TYPE):
-			push_error("received error response with no error attribute")
-			return
-		# https://www.rfc-editor.org/rfc/rfc5389#section-10.2.3
-		# TODO: Check realm
-		var error : StunAttributeErrorCode = res.get_attribute(StunAttributeErrorCode.TYPE)
-		if error.code==401 && !req.has_attribute(StunAttributeUsername.TYPE):
-			_send_allocate_auth_response(res)
-		else:
-			emit_signal("allocate_error", error, req, res)
+	_state = State.AllocationActive
+	emit_signal("allocate_success")

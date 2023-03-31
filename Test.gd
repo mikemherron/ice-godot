@@ -19,16 +19,16 @@ func _ready() -> void:
 	# global.stun.twilio.com (no IPv6?)
 	#stun_client = StunClient.new('34.203.250.120', 3478)
 	
-	turn_client.message_received.connect(_debug_message_received)
-	turn_client.message_sent.connect(_debug_message_sent)
+	turn_client._peer.message_received.connect(_debug_message_received)
+	turn_client._peer.message_sent.connect(_debug_message_sent)
 	turn_client.allocate_success.connect(_on_allocate_success)
 	turn_client.allocate_error.connect(_on_allocate_error)
 	turn_client.send_allocate_request()
 
-func _on_allocate_success(response: StunMessage, request: StunMessage):
+func _on_allocate_success():
 	print("ALLOCATE SUCCESS")
 
-func _on_allocate_error(error : StunAttributeErrorCode, response: StunMessage, request: StunMessage):
+func _on_allocate_error():
 	print("ALLOCATE ERROR")
 
 func _debug_message_sent(message: StunMessage):
