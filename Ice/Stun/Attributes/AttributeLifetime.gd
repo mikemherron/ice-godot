@@ -1,23 +1,23 @@
 extends StunAttribute
 
-class_name StunAttributeFingerprint
+class_name StunAttributeLifetime
 
-const TYPE = 0x8028
-const NAME = "FINGERPRINT"
+const TYPE = 0x000D
+const NAME = "LIFETIME"
 const SIZE = 4
 
-var fingerprint: int
+var lifetime: int
 
 func _init():
   super(TYPE, NAME)
 
 func _to_string() -> String:
-  return str(fingerprint)
+  return str(lifetime)
 
 func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: StunMessage) -> void:
-  fingerprint = buffer.get_u32()
+  lifetime = buffer.get_u32()
 
 func write_to_buffer(buffer: StreamPeerBuffer, msg: StunMessage) -> void:
-  buffer.put_u16(type)
+  buffer.put_u16(TYPE)
   buffer.put_u16(SIZE)
-  buffer.put_u32(fingerprint)
+  buffer.put_u32(lifetime)

@@ -13,7 +13,6 @@ config_version=5
 config/name="StunTurn"
 run/main_scene="res://Test.tscn"
 config/features=PackedStringArray("4.0", "GL Compatibility")
-config/icon="res://icon.svg"
 
 [debug]
 

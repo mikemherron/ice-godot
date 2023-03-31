@@ -2,7 +2,6 @@ class_name StunMessage
 
 const MAGIC_COOKIE = 0x2112a442
 
-
 var type: int
 var txn_id: StunTxnId
 var attributes: Array[StunAttribute]
@@ -38,6 +37,10 @@ static func from_bytes(bytes: PackedByteArray) -> StunMessage:
 		if attr:
 			msg.attributes.append(attr)
 	
+	# Debug verify round-tripping results in same bytes
+	if msg.to_bytes() != bytes:
+		push_error("round-tripping bytes doesn't match original (\n\texpected %s\n\tgot %s)" % [bytes, msg.to_bytes()])
+
 	return msg
 
 static func create_attribute_for_type(_type: int) -> StunAttribute:
@@ -46,6 +49,8 @@ static func create_attribute_for_type(_type: int) -> StunAttribute:
 			return StunAttributeMappedAddress.new()
 		StunAttributeXorMappedAddress.TYPE:
 			return StunAttributeXorMappedAddress.new()
+		StunAttributeXorRelayedAddress.TYPE:
+			return StunAttributeXorRelayedAddress.new()
 		StunAttributeSoftware.TYPE:
 			return StunAttributeSoftware.new()
 		StunAttributeFingerprint.TYPE:
@@ -62,6 +67,10 @@ static func create_attribute_for_type(_type: int) -> StunAttribute:
 			return StunAttributeRealm.new()
 		StunAttributeNonce.TYPE:
 			return StunAttributeNonce.new()
+		StunAttributeLifetime.TYPE:
+			return StunAttributeLifetime.new()
+		StunAttributeMessageIntegrity.TYPE:
+			return StunAttributeMessageIntegrity.new()
 	return null
 
 static func _parse_attribute(buffer: StreamPeerBuffer, msg: StunMessage) -> StunAttribute:
@@ -71,6 +80,7 @@ static func _parse_attribute(buffer: StreamPeerBuffer, msg: StunMessage) -> Stun
 		size = buffer.get_size() - buffer.get_position()
 	var attr: StunAttribute = StunMessage.create_attribute_for_type(type)
 	if attr == null:
+		push_warning("unknown attribute type 0x%04x" % type)
 		attr = StunAttributeUnknown.new(type)
 	attr.read_from_buffer(buffer, size, msg)
 	return attr
