@@ -12,7 +12,7 @@ func _init():
   super(TYPE, NAME)
 
 func _to_string() -> String:
-  return str(lifetime)
+  return "%s: %d" % [name, lifetime]
 
 func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: StunMessage) -> void:
   lifetime = buffer.get_u32()

@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3 uid="uid://crldtjcqwp1q1"]
+
+[ext_resource type="Script" path="res://Attribute.gd" id="1_mrmej"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_y1h5v"]
+bg_color = Color(0.168627, 0.211765, 0.266667, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="Attribute" type="Panel"]
+custom_minimum_size = Vector2(268, 30)
+offset_right = 268.0
+offset_bottom = 29.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_y1h5v")
+script = ExtResource("1_mrmej")
+
+[node name="Desc" type="Label" parent="."]
+layout_mode = 0
+offset_left = 2.0
+offset_right = 264.0
+offset_bottom = 26.0
+theme_override_font_sizes/font_size = 12
+text = "*Attribute Type*"
+vertical_alignment = 1

@@ -2,5 +2,163 @@
 
 [ext_resource type="Script" path="res://Test.gd" id="1_df1ub"]
 
-[node name="Node2D" type="Node2D"]
+[node name="Node2D" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_df1ub")
+
+[node name="Output" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -387.0
+offset_top = 10.0
+offset_right = -15.0
+offset_bottom = -9.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="Label" type="Label" parent="Output"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 1.0
+offset_top = 13.0
+offset_right = -16.0
+offset_bottom = -598.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Messages"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Output"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 53.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MessageContainer" type="VBoxContainer" parent="Output/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="Settings" type="Control" parent="."]
+anchors_preset = 0
+offset_left = 14.0
+offset_top = 27.0
+offset_right = 444.0
+offset_bottom = 372.0
+
+[node name="Label" type="Label" parent="Settings"]
+layout_mode = 0
+offset_left = 19.0
+offset_top = 23.0
+offset_right = 135.0
+offset_bottom = 49.0
+text = "Server Address"
+
+[node name="Label2" type="Label" parent="Settings"]
+layout_mode = 0
+offset_left = 19.0
+offset_top = 53.0
+offset_right = 135.0
+offset_bottom = 79.0
+text = "Server Port"
+horizontal_alignment = 2
+
+[node name="Label3" type="Label" parent="Settings"]
+layout_mode = 0
+offset_left = 19.0
+offset_top = 90.0
+offset_right = 135.0
+offset_bottom = 116.0
+text = "Username"
+horizontal_alignment = 2
+
+[node name="Label4" type="Label" parent="Settings"]
+layout_mode = 0
+offset_left = 22.0
+offset_top = 127.0
+offset_right = 138.0
+offset_bottom = 153.0
+text = "Password"
+horizontal_alignment = 2
+
+[node name="Label5" type="Label" parent="Settings"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 165.0
+offset_right = 136.0
+offset_bottom = 191.0
+text = "Realm"
+horizontal_alignment = 2
+
+[node name="Label6" type="Label" parent="Settings"]
+layout_mode = 0
+offset_left = 133.0
+offset_top = 266.0
+offset_right = 249.0
+offset_bottom = 292.0
+text = "*Status*"
+horizontal_alignment = 2
+
+[node name="Connect" type="Button" parent="Settings"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 148.0
+offset_top = 203.0
+offset_right = 316.0
+offset_bottom = 234.0
+text = "Connect"
+
+[node name="Address" type="LineEdit" parent="Settings"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 149.0
+offset_top = 19.0
+offset_right = 320.0
+offset_bottom = 50.0
+
+[node name="Port" type="LineEdit" parent="Settings"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 149.0
+offset_top = 52.0
+offset_right = 320.0
+offset_bottom = 83.0
+
+[node name="Username" type="LineEdit" parent="Settings"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 149.0
+offset_top = 89.0
+offset_right = 320.0
+offset_bottom = 120.0
+
+[node name="Password" type="LineEdit" parent="Settings"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 149.0
+offset_top = 125.0
+offset_right = 320.0
+offset_bottom = 156.0
+
+[node name="Realm" type="LineEdit" parent="Settings"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 149.0
+offset_top = 162.0
+offset_right = 320.0
+offset_bottom = 193.0
+
+[connection signal="button_down" from="Settings/Connect" to="." method="_on_connect_button_down"]

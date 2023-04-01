@@ -24,7 +24,7 @@ func _to_string() -> String:
 			fs = 'IPv6'
 		_:
 			fs = 'UNKNOWN'
-	return '%s:%s (%s)' % [ip, port, fs]
+	return '%s %s:%s (%s)' % [name, ip, port, fs]
 
 func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: StunMessage) -> void:
 	family = buffer.get_u16()

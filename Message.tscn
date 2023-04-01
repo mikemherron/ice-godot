@@ -1,0 +1,150 @@
+[gd_scene load_steps=6 format=3 uid="uid://b25vaswecj6q1"]
+
+[ext_resource type="Script" path="res://Message.gd" id="1_6y8si"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2bh3s"]
+bg_color = Color(0.0941176, 0.0941176, 0.0941176, 1)
+border_width_top = 2
+border_color = Color(0.356863, 0.580392, 0.776471, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3bbai"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_uvfuw"]
+bg_color = Color(0.643137, 0.909804, 0.627451, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_83408"]
+bg_color = Color(0.909804, 0.282353, 0.282353, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="Message" type="Panel"]
+modulate = Color(1, 1, 1, 0.8)
+custom_minimum_size = Vector2(0, 222)
+offset_right = 300.0
+offset_bottom = 222.0
+mouse_default_cursor_shape = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_2bh3s")
+script = ExtResource("1_6y8si")
+
+[node name="Type" type="Label" parent="."]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 6.0
+offset_right = 132.0
+offset_bottom = 32.0
+text = "*Message Type*"
+
+[node name="Txn" type="Label" parent="."]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 30.0
+offset_right = 134.0
+offset_bottom = 49.0
+theme_override_font_sizes/font_size = 10
+text = "*Txn*"
+
+[node name="Status" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_top = 7.0
+offset_bottom = 47.0
+grow_horizontal = 0
+
+[node name="Out" type="Panel" parent="Status"]
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 37.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_3bbai")
+
+[node name="Label" type="Label" parent="Status/Out"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.52549, 0.52549, 0.52549, 1)
+theme_override_font_sizes/font_size = 12
+text = "OUT"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InOK" type="Panel" parent="Status"]
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 37.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_uvfuw")
+
+[node name="Label" type="Label" parent="Status/InOK"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "OK"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InError" type="Panel" parent="Status"]
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 37.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_83408")
+
+[node name="Label" type="Label" parent="Status/InError"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "ERR"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 6.0
+offset_top = 53.0
+offset_right = -8.0
+offset_bottom = -11.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Attributes" type="VBoxContainer" parent="ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[connection signal="mouse_entered" from="." to="." method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="." to="." method="_on_mouse_exited"]

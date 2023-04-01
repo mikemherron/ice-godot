@@ -25,3 +25,4 @@ gdscript/warnings/unused_parameter=0
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.129558, 0.129559, 0.129558, 1)
