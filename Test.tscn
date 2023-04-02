@@ -57,7 +57,7 @@ anchors_preset = 0
 offset_left = 14.0
 offset_top = 27.0
 offset_right = 444.0
-offset_bottom = 372.0
+offset_bottom = 299.0
 
 [node name="Label" type="Label" parent="Settings"]
 layout_mode = 0
@@ -101,15 +101,6 @@ offset_top = 165.0
 offset_right = 136.0
 offset_bottom = 191.0
 text = "Realm"
-horizontal_alignment = 2
-
-[node name="Label6" type="Label" parent="Settings"]
-layout_mode = 0
-offset_left = 133.0
-offset_top = 266.0
-offset_right = 249.0
-offset_bottom = 292.0
-text = "*Status*"
 horizontal_alignment = 2
 
 [node name="Connect" type="Button" parent="Settings"]
@@ -161,4 +152,211 @@ offset_top = 162.0
 offset_right = 320.0
 offset_bottom = 193.0
 
+[node name="Status" type="Control" parent="."]
+anchors_preset = 0
+offset_left = 29.0
+offset_top = 336.0
+offset_right = 344.0
+offset_bottom = 651.0
+
+[node name="Label6" type="Label" parent="Status"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = -16.0
+offset_right = 123.0
+offset_bottom = 10.0
+text = "Status"
+horizontal_alignment = 2
+
+[node name="Label7" type="Label" parent="Status"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 19.0
+offset_right = 123.0
+offset_bottom = 45.0
+text = "Relayed IP
+"
+horizontal_alignment = 2
+
+[node name="Label8" type="Label" parent="Status"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 54.0
+offset_right = 123.0
+offset_bottom = 80.0
+text = "Reflexive IP"
+horizontal_alignment = 2
+
+[node name="Label9" type="Label" parent="Status"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 90.0
+offset_right = 126.0
+offset_bottom = 116.0
+text = "Time to Refresh"
+horizontal_alignment = 2
+
+[node name="Status" type="LineEdit" parent="Status"]
+layout_mode = 0
+offset_left = 134.0
+offset_top = -16.0
+offset_right = 301.0
+offset_bottom = 15.0
+editable = false
+
+[node name="RelayedIp" type="LineEdit" parent="Status"]
+layout_mode = 0
+offset_left = 134.0
+offset_top = 19.0
+offset_right = 301.0
+offset_bottom = 50.0
+editable = false
+
+[node name="ReflexiveIp" type="LineEdit" parent="Status"]
+layout_mode = 0
+offset_left = 134.0
+offset_top = 54.0
+offset_right = 301.0
+offset_bottom = 85.0
+editable = false
+
+[node name="RefreshTime" type="LineEdit" parent="Status"]
+layout_mode = 0
+offset_left = 134.0
+offset_top = 90.0
+offset_right = 301.0
+offset_bottom = 121.0
+editable = false
+
+[node name="Controls" type="TabContainer" parent="."]
+layout_mode = 0
+offset_left = 344.0
+offset_top = 19.0
+offset_right = 744.0
+offset_bottom = 639.0
+
+[node name="Channels" type="Control" parent="Controls"]
+layout_mode = 2
+
+[node name="Label10" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_top = 56.0
+offset_right = 122.0
+offset_bottom = 82.0
+text = "Peer IP:Port"
+horizontal_alignment = 2
+
+[node name="PeerIpPort" type="LineEdit" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 132.0
+offset_top = 56.0
+offset_right = 299.0
+offset_bottom = 87.0
+text = "127.0.0.1:0000"
+
+[node name="Label11" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_top = 91.0
+offset_right = 122.0
+offset_bottom = 117.0
+text = "Channel"
+horizontal_alignment = 2
+
+[node name="Label12" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 170.0
+offset_right = 170.0
+offset_bottom = 196.0
+text = "Configured Channels"
+
+[node name="Label13" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 13.0
+offset_right = 170.0
+offset_bottom = 39.0
+text = "Bind Channel"
+
+[node name="Label14" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 376.0
+offset_right = 170.0
+offset_bottom = 402.0
+text = "Send Channel Data"
+
+[node name="Channel" type="LineEdit" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 132.0
+offset_top = 91.0
+offset_right = 299.0
+offset_bottom = 122.0
+
+[node name="Label15" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 407.0
+offset_right = 130.0
+offset_bottom = 433.0
+text = "Channel"
+horizontal_alignment = 2
+
+[node name="Label16" type="Label" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 441.0
+offset_right = 130.0
+offset_bottom = 467.0
+text = "String Data"
+horizontal_alignment = 2
+
+[node name="SendChannel" type="LineEdit" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 139.0
+offset_top = 402.0
+offset_right = 306.0
+offset_bottom = 433.0
+
+[node name="SendChannelData" type="TextEdit" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 139.0
+offset_top = 441.0
+offset_right = 389.0
+offset_bottom = 543.0
+
+[node name="Button" type="Button" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 132.0
+offset_top = 127.0
+offset_right = 297.0
+offset_bottom = 158.0
+text = "Send Channel Bind"
+
+[node name="SendChannelDataButton" type="Button" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 139.0
+offset_top = 548.0
+offset_right = 304.0
+offset_bottom = 579.0
+text = "Send Channel Data"
+
+[node name="ColorRect" type="ColorRect" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 196.0
+offset_right = 389.0
+offset_bottom = 366.0
+color = Color(0.121569, 0.121569, 0.121569, 1)
+
+[node name="Existing" type="GridContainer" parent="Controls/Channels"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 196.0
+offset_right = 389.0
+offset_bottom = 336.0
+columns = 2
+
 [connection signal="button_down" from="Settings/Connect" to="." method="_on_connect_button_down"]
+[connection signal="button_down" from="Controls/Channels/Button" to="." method="_on_button_button_down"]
+[connection signal="button_down" from="Controls/Channels/SendChannelDataButton" to="." method="_on_send_channel_data_button_down"]

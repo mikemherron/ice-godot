@@ -12,10 +12,13 @@ class_name TurnClient
 #  Support lifetime specification in allocate
 #  Investigate why PION error strings are not coming back in error responses
 
+const CHANNEL_DATA_HEADER_SIZE = 4
 const REFRESH_THRESHOLD = 60
 
 signal allocate_success
 signal allocate_error
+signal channel_bind_success
+signal channel_data 
 
 enum State {
 	Idle, 
@@ -37,12 +40,15 @@ var _relayed_transport_address : StunAttributeAddress
 var _server_reflexive_address : StunAttributeAddress
 var _remaining_lifetime : float
 
+var _active_channels : Dictionary = {}
+
 var _peer : StunMessagePeer
+var _next_channel : int = StunAttributeChannelNumber.CHANNEL_MIN
 
 func _init(ip: String, port: int, username : String, password : String, realm : String):
 	_peer = StunMessagePeer.new(ip, port)
 	_peer.connect("message_received", self._handle_message_received)
-	
+	_peer.connect("bytes_received", self._handle_bytes_received)
 	_username = username
 	_password = password
 	_realm = realm
@@ -62,6 +68,36 @@ func send_allocate_request() -> void:
 	_state = State.AllocationRequested
 	_peer.send_message(StunMessage.new(StunMessage.Type.ALLOCATE_REQUEST, StunTxnId.new_random()))
 
+# TODO: just assuming IPv4 for now
+func send_channel_bind_request(peer_ip : String, peer_port :int) -> void:
+	if _state!= State.AllocationActive:
+		return push_error("channel bind request sent before allocation active")
+	var msg := StunMessage.new(StunMessage.Type.CHANNEL_BIND_REQUEST, StunTxnId.new_random())
+	msg.attributes.append(StunAttributeRealm.new(_realm))
+	msg.attributes.append(StunAttributeNonce.new(_nonce))
+	msg.attributes.append(StunAttributeUsername.new(_username))
+	msg.attributes.append(StunAttributeChannelNumber.new(_next_channel))
+	msg.attributes.append(StunAttributeXorPeerAddress.new(peer_ip, peer_port))
+
+	var msg_integrity_attr := StunAttributeMessageIntegrity.for_message(_hmac_key, msg)
+	msg.attributes.append(msg_integrity_attr)
+
+	_peer.send_message(msg)
+
+func send_channel_data(channel_number : int, data : PackedByteArray) -> void:
+	if _state!= State.AllocationActive:
+		return push_error("channel data sent before allocation active")
+	if !_active_channels.has(channel_number):
+		return push_error("channel data sent for unknown channel")
+	
+	var buffer := StreamPeerBuffer.new()
+	buffer.big_endian = true
+	buffer.put_16(channel_number)
+	buffer.put_16(data.size())
+	# "Over UDP, the padding is not required but MAY be included." - maybe do this?
+	buffer.put_data(data)
+	_peer.send_bytes(buffer.get_data_array())
+	
 func _send_refresh() -> void:
 	var msg := StunMessage.new(StunMessage.Type.REFRESH_REQUEST, StunTxnId.new_random())
 	msg.attributes.append(StunAttributeRealm.new(_realm))
@@ -81,7 +117,9 @@ func _handle_message_received(res: StunMessage, req : StunMessage) -> void:
 			_handle_allocate_error(res, req)
 		StunMessage.Type.REFRESH_SUCCESS:
 			_handle_refresh_success(res)
-
+		StunMessage.Type.CHANNEL_BIND_SUCCESS:
+			_handle_channel_bind_success(req, res)
+			
 func _handle_allocate_error(res: StunMessage, req : StunMessage) -> void:	
 	if !res.has_attribute(StunAttributeErrorCode.TYPE):
 		_state = State.AllocationError
@@ -141,3 +179,31 @@ func _handle_refresh_success(res: StunMessage) -> void:
 		_state = State.AllocationError
 		return push_error("received refresh success response with invalid message integrity")
 	_remaining_lifetime = float(res.get_attribute(StunAttributeLifetime.TYPE).lifetime)
+
+func _handle_channel_bind_success(req : StunMessage, res: StunMessage) -> void:	
+	var msg_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
+	if !msg_integrity_attr.verify(_hmac_key, res):
+		return push_error("received channel bind success response with invalid message integrity")
+	
+	var channel : int = req.get_attribute(StunAttributeChannelNumber.TYPE).channel
+	var peer : StunAttributeAddress = req.get_attribute(StunAttributeXorPeerAddress.TYPE)
+	_active_channels[channel] = "%s:%d" % [peer.ip, peer.port]
+	
+	emit_signal("channel_bind_success", channel, peer.ip, peer.port)
+	_next_channel+=1
+	
+func _handle_bytes_received(buffer : StreamPeerBuffer) -> void:
+	if buffer.get_available_bytes() < CHANNEL_DATA_HEADER_SIZE:
+		return push_error("received data smaller than channel data")
+	var channel : int = buffer.get_16()
+	if !_active_channels.has(channel):
+		return push_error("received channel data for unknown channel")
+		
+	## Just assume as string for now for easy testing, obvs
+	## this would not be the case for real
+	var length : int = buffer.get_16()
+	var data : String = buffer.get_utf8_string(length)
+	print("maybe channel data message:", data)
+	
+	emit_signal("channel_data", channel, data)
+	

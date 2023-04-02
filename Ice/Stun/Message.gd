@@ -1,31 +1,38 @@
 class_name StunMessage
 
 const MAGIC_COOKIE = 0x2112a442
+const HEADER_SIZE = 20
 
 var type: int
 var txn_id: StunTxnId
 var attributes: Array[StunAttribute]
 
 enum Type {
-	BINDING_REQUEST   = 0x0001,
-	BINDING_SUCCESS   = 0x0101,
-	BINDING_ERROR     = 0x0111,
+	BINDING_REQUEST   		= 0x0001,
+	BINDING_SUCCESS   		= 0x0101,
+	BINDING_ERROR     		= 0x0111,
 	
-	ALLOCATE_REQUEST  = 0x0003,
-	ALLOCATE_SUCCESS  = 0x0103,
-	ALLOCATE_ERROR	  = 0x0113,
+	ALLOCATE_REQUEST  		= 0x0003,
+	ALLOCATE_SUCCESS  		= 0x0103,
+	ALLOCATE_ERROR	  		= 0x0113,
 
-	REFRESH_REQUEST		= 0x0004,
-	REFRESH_SUCCESS		= 0x0104,
-	REFRESH_ERROR			= 0x0114
+	REFRESH_REQUEST				= 0x0004,
+	REFRESH_SUCCESS				= 0x0104,
+	REFRESH_ERROR					= 0x0114,
+
+	CHANNEL_BIND_REQUEST	= 0x0009,
+	CHANNEL_BIND_SUCCESS	= 0x0109,
+	CHANNEL_BIND_ERROR		= 0x0119
 }
 
 static func from_bytes(bytes: PackedByteArray) -> StunMessage:
 	var buffer := StreamPeerBuffer.new()
 	buffer.big_endian = true
 	buffer.put_data(bytes)
-	buffer.seek(0)
+	return StunMessage.from_buffer(buffer)
 	
+static func from_buffer(buffer: StreamPeerBuffer) -> StunMessage:
+	buffer.seek(0)
 	var type = buffer.get_u16()
 	var size = buffer.get_u16()
 	
@@ -42,6 +49,9 @@ static func from_bytes(bytes: PackedByteArray) -> StunMessage:
 			msg.attributes.append(attr)
 	
 	# Debug verify round-tripping results in same bytes
+	buffer.seek(0)
+	var available : int = buffer.get_available_bytes()
+	var bytes : PackedByteArray = PackedByteArray(buffer.get_data(available)[1])
 	if msg.to_bytes() != bytes:
 		push_error("round-tripping bytes doesn't match original (\n\texpected %s\n\tgot %s)" % [bytes, msg.to_bytes()])
 
