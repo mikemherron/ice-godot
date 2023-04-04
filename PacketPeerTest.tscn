@@ -1,0 +1,33 @@
+[gd_scene load_steps=2 format=3 uid="uid://dudpa2htrryv"]
+
+[ext_resource type="Script" path="res://PacketPeerTest.gd" id="1_rbx64"]
+
+[node name="Control" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_rbx64")
+
+[node name="Button" type="Button" parent="."]
+layout_mode = 0
+offset_left = 832.0
+offset_top = 34.0
+offset_right = 1110.0
+offset_bottom = 68.0
+text = "Close Peer 1"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 0
+offset_left = 63.0
+offset_top = 34.0
+offset_right = 770.0
+offset_bottom = 607.0
+
+[node name="Log" type="Label" parent="ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[connection signal="button_down" from="Button" to="." method="_on_button_down"]

@@ -21,6 +21,13 @@ func _ready() -> void:
 
 func _on_allocate_success():
 	$Controls/Channels/Channel.text = str(turn_client._next_channel)
+	var peer = ENetMultiplayerPeer.new()
+	var res : int = peer.create_server(turn_client._server_reflexive_address.port)
+	if res != OK:
+		print("Connection failed")
+	else:
+		print("Connected....?")
+	multiplayer.multiplayer_peer = peer
 
 func _on_allocate_error():
 	print("ALLOCATE ERROR")
@@ -54,6 +61,7 @@ func _process(_delta: float) -> void:
 	if turn_client==null:
 		return
 	turn_client.poll(_delta)
+	$Status/LocalPort.text = str(turn_client._peer._peer.get_local_port())
 	$Status/Status.text = TurnClient.State.find_key(turn_client._state)
 	if turn_client._relayed_transport_address!=null:
 		$Status/RelayedIp.text = turn_client._relayed_transport_address.ip + ":" + str(turn_client._relayed_transport_address.port)

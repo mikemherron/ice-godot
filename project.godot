@@ -21,6 +21,10 @@ gdscript/warnings/shadowed_variable=0
 gdscript/warnings/unused_private_class_variable=0
 gdscript/warnings/unused_parameter=0
 
+[display]
+
+window/size/viewport_width=1652
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
