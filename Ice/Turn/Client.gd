@@ -45,6 +45,18 @@ var _active_channels : Dictionary = {}
 var _peer : StunMessagePeer
 var _next_channel : int = StunAttributeChannelNumber.CHANNEL_MIN
 
+enum ProxyMode {
+	Client, Server	
+}
+
+var _proxy_mode : int
+var _proxy_socket : PacketPeerUDP
+# When in proxy server mode Maps ENet peer numbers to TURN channels
+var _proxy_enet_peer_mapping : Dictionary = {}
+var _proxy_client_sockets : Dictionary = {}
+
+const ProxyClientsStartPort = 70000
+
 func _init(ip: String, port: int, username : String, password : String, realm : String):
 	_peer = StunMessagePeer.new(ip, port)
 	_peer.connect("message_received", self._handle_message_received)
@@ -57,10 +69,56 @@ func _init(ip: String, port: int, username : String, password : String, realm : 
 
 func poll(delta : float) -> void:
 	_peer.poll()
-	if _state == State.AllocationActive:
-		_remaining_lifetime -= delta
-		if _remaining_lifetime < REFRESH_THRESHOLD:
-			_send_refresh()
+	if _state != State.AllocationActive:
+		return
+		
+	# TODO buffer/retry requests as per STUN RFC so we don't send a load
+	# of requests until we get a response
+	_remaining_lifetime -= delta
+	if _remaining_lifetime < REFRESH_THRESHOLD:
+		_send_refresh()
+		
+	# A message on the proxy socket means ENet is trying to send a packet 
+	# somewhere...
+	if _proxy_mode == ProxyMode.Server:
+		for channel in _proxy_client_sockets:
+			var client_proxy : PacketPeerUDP = _proxy_client_sockets[channel]
+			if client_proxy.get_available_packet_count() > 0:
+				var packet : PackedByteArray = _proxy_socket.get_packet()
+				if _proxy_socket.get_packet_error()!=OK:
+					return
+				print("Client on channel %d has packet, forwarding" % [channel])
+				# The server has sent a packet to this client proxy - forward
+				# it on to the actual client through the correct TURN channel
+				send_channel_data(channel, packet)
+	elif _proxy_socket!=null && _proxy_socket.get_available_packet_count() > 0:
+		var packet : PackedByteArray = _proxy_socket.get_packet()
+		if _proxy_socket.get_packet_error()!=OK:
+			return
+		# If we are a client, the packet will always be destined for the server
+		if _proxy_mode == ProxyMode.Client:
+			# Assume that if we are a client only a single channel for the 
+			# server should have been created
+			if _active_channels.size() > 1:
+				print("Unable to forward packet as more than 1 channel")
+				return 
+			print("forwarding ENet packet on to server as channel data")
+			var server_channel : int = _active_channels.keys()[0]
+			send_channel_data(server_channel, packet)
+		
+		# If we are a server, we need to figure out what client the packet
+		# is destined for and then look up the correct channel - could we 
+		# peek inside and get the peer ID?
+		elif _proxy_mode == ProxyMode.Server:
+			pass
+#			print ("forwarding packet from Enet server to client..")
+#			var possible_peer_number : int = packet.decode_u16(0)
+#			print("- possible ENet peer number: %d" % [possible_peer_number])
+#			if !_proxy_enet_peer_mapping.has(possible_peer_number):
+#				print("- couldn't find channel mapping :(")
+#			var client_channel : int = _proxy_enet_peer_mapping[possible_peer_number]
+#			print("- sending on channel: %d" % [_proxy_enet_peer_mapping[possible_peer_number]])
+#			send_channel_data(client_channel, packet)
 	
 func send_allocate_request() -> void:
 	if _state != State.Idle:
@@ -98,6 +156,14 @@ func send_channel_data(channel_number : int, data : PackedByteArray) -> void:
 	buffer.put_data(data)
 	_peer.send_bytes(buffer.get_data_array())
 	
+func set_server_proxy_socket(proxy_socket : PacketPeerUDP) -> void:
+	_proxy_mode = ProxyMode.Server
+	_proxy_socket = proxy_socket
+	
+func set_client_proxy_socket(proxy_socket : PacketPeerUDP) -> void:
+	_proxy_mode = ProxyMode.Client
+	_proxy_socket = proxy_socket
+
 func _send_refresh() -> void:
 	var msg := StunMessage.new(StunMessage.Type.REFRESH_REQUEST, StunTxnId.new_random())
 	msg.attributes.append(StunAttributeRealm.new(_realm))
@@ -159,12 +225,14 @@ func _handle_allocate_error(res: StunMessage, req : StunMessage) -> void:
 func _handle_allocate_success(res: StunMessage) -> void:
 	if !res.has_attribute(StunAttributeMessageIntegrity.TYPE):
 		_state = State.AllocationError
-		return push_error("received allocate success response with no message integrity")
+		print("received allocate success response with no message integrity")
+		return
 
 	var msg_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
 	if !msg_integrity_attr.verify(_hmac_key, res):
 		_state = State.AllocationError
-		return push_error("received allocate success response with invalid message integrity")
+		print("received allocate success response with invalid message integrity")
+		return
 		
 	_relayed_transport_address = res.get_attribute(StunAttributeXorRelayedAddress.TYPE)
 	_server_reflexive_address = res.get_attribute(StunAttributeXorMappedAddress.TYPE)
@@ -177,13 +245,16 @@ func _handle_refresh_success(res: StunMessage) -> void:
 	var msg_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
 	if !msg_integrity_attr.verify(_hmac_key, res):
 		_state = State.AllocationError
-		return push_error("received refresh success response with invalid message integrity")
+		print("received refresh success response with invalid message integrity")
+		return
+		
 	_remaining_lifetime = float(res.get_attribute(StunAttributeLifetime.TYPE).lifetime)
 
 func _handle_channel_bind_success(req : StunMessage, res: StunMessage) -> void:	
 	var msg_integrity_attr : StunAttributeMessageIntegrity = res.get_attribute(StunAttributeMessageIntegrity.TYPE)
 	if !msg_integrity_attr.verify(_hmac_key, res):
-		return push_error("received channel bind success response with invalid message integrity")
+		print("received channel bind success response with invalid message integrity")
+		return
 	
 	var channel : int = req.get_attribute(StunAttributeChannelNumber.TYPE).channel
 	var peer : StunAttributeAddress = req.get_attribute(StunAttributeXorPeerAddress.TYPE)
@@ -194,16 +265,45 @@ func _handle_channel_bind_success(req : StunMessage, res: StunMessage) -> void:
 	
 func _handle_bytes_received(buffer : StreamPeerBuffer) -> void:
 	if buffer.get_available_bytes() < CHANNEL_DATA_HEADER_SIZE:
-		return push_error("received data smaller than channel data")
+		print("received data smaller than channel data")
+		return
+	
 	var channel : int = buffer.get_16()
 	if !_active_channels.has(channel):
-		return push_error("received channel data for unknown channel")
+		print("received channel data for unknown channel")
+		return
 		
-	## Just assume as string for now for easy testing, obvs
-	## this would not be the case for real
 	var length : int = buffer.get_16()
-	var data : String = buffer.get_utf8_string(length)
-	print("maybe channel data message:", data)
+	var get_data_res : Array = buffer.get_data(length)
+	if get_data_res[0]!=OK:
+		print("error getting data from channel data packet:", get_data_res[0])
+		return
+		
+	var raw_data : PackedByteArray = get_data_res[1]
+
+	print("Channel data message received of length ", length)
 	
-	emit_signal("channel_data", channel, data)
+	## If there is a proxy socket active, send on the raw packet data
+	if _proxy_socket!=null:
+		print("sending packet on to proxy")
+		# TODO if we are the server, we'll need to inspect this and extract
+		# the ENet peer ID so we can map it back to the channel in the poll 
+		# method?
+		if _proxy_mode == ProxyMode.Server:
+			# Set up a new proxy socket for this client
+			if !_proxy_client_sockets.has(channel):
+				var socket : PacketPeerUDP = PacketPeerUDP.new()
+				socket.connect_to_host("127.0.0.1", 4433)
+				_proxy_client_sockets[channel] = socket
+				
+			_proxy_client_sockets[channel].put_packet(raw_data)
+			#var possible_peer_number : int = raw_data.decode_u16(0)
+#			var possible_peer_number : int = buffer.get_u16()
+#			print("Possible ENet peer number received from server: %d" % [possible_peer_number])
+#			if !_proxy_enet_peer_mapping.has(possible_peer_number):
+#				print("- mapped to channel: %d" % [channel])
+#				_proxy_enet_peer_mapping[possible_peer_number] = channel
+#				_proxy_socket.put_packet(raw_data)
+	
+	emit_signal("channel_data", channel, raw_data)
 	
