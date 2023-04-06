@@ -81,10 +81,12 @@ func poll(delta : float) -> void:
 	# A message on the proxy socket means ENet is trying to send a packet 
 	# somewhere...
 	if _proxy_mode == ProxyMode.Server:
+		# If we are a server, go through each of the client proxy sockets 
+		# and check if they have a message
 		for channel in _proxy_client_sockets:
 			var client_proxy : PacketPeerUDP = _proxy_client_sockets[channel]
 			if client_proxy.get_available_packet_count() > 0:
-				var packet : PackedByteArray = _proxy_socket.get_packet()
+				var packet : PackedByteArray = client_proxy.get_packet()
 				if _proxy_socket.get_packet_error()!=OK:
 					return
 				print("Client on channel %d has packet, forwarding" % [channel])
@@ -290,13 +292,18 @@ func _handle_bytes_received(buffer : StreamPeerBuffer) -> void:
 		# the ENet peer ID so we can map it back to the channel in the poll 
 		# method?
 		if _proxy_mode == ProxyMode.Server:
+			print("forwarding received packet from TURN to to ENet server")
 			# Set up a new proxy socket for this client
 			if !_proxy_client_sockets.has(channel):
+				print("- this client does not have a proxy socket, making a new one")
 				var socket : PacketPeerUDP = PacketPeerUDP.new()
 				socket.connect_to_host("127.0.0.1", 4433)
 				_proxy_client_sockets[channel] = socket
-				
 			_proxy_client_sockets[channel].put_packet(raw_data)
+		elif _proxy_mode == ProxyMode.Client:
+			print("forwarding received packet from TURN to ENet client")
+			_proxy_socket.put_packet(raw_data)
+			
 			#var possible_peer_number : int = raw_data.decode_u16(0)
 #			var possible_peer_number : int = buffer.get_u16()
 #			print("Possible ENet peer number received from server: %d" % [possible_peer_number])

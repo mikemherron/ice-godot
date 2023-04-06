@@ -3,7 +3,7 @@ extends Control
 #var stun_client: StunClient
 var turn_client: TurnClient
 
-const DEFAULT_ADDRESS = "35.246.41.128"
+const DEFAULT_ADDRESS = "35.246.66.203"
 const DEFAULT_PORT = "3478"
 const DEFAULT_USERNAME = "username"
 const DEFAULT_PASSWORD = "password"
