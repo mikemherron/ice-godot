@@ -45,18 +45,6 @@ var _active_channels : Dictionary = {}
 var _peer : StunMessagePeer
 var _next_channel : int = StunAttributeChannelNumber.CHANNEL_MIN
 
-enum ProxyMode {
-	Client, Server	
-}
-
-var _proxy_mode : int
-var _proxy_socket : PacketPeerUDP
-# When in proxy server mode Maps ENet peer numbers to TURN channels
-var _proxy_enet_peer_mapping : Dictionary = {}
-var _proxy_client_sockets : Dictionary = {}
-
-const ProxyClientsStartPort = 70000
-
 func _init(ip: String, port: int, username : String, password : String, realm : String):
 	_peer = StunMessagePeer.new(ip, port)
 	_peer.connect("message_received", self._handle_message_received)
@@ -71,56 +59,12 @@ func poll(delta : float) -> void:
 	_peer.poll()
 	if _state != State.AllocationActive:
 		return
-		
+
 	# TODO buffer/retry requests as per STUN RFC so we don't send a load
 	# of requests until we get a response
 	_remaining_lifetime -= delta
 	if _remaining_lifetime < REFRESH_THRESHOLD:
 		_send_refresh()
-		
-	# A message on the proxy socket means ENet is trying to send a packet 
-	# somewhere...
-	if _proxy_mode == ProxyMode.Server:
-		# If we are a server, go through each of the client proxy sockets 
-		# and check if they have a message
-		for channel in _proxy_client_sockets:
-			var client_proxy : PacketPeerUDP = _proxy_client_sockets[channel]
-			if client_proxy.get_available_packet_count() > 0:
-				var packet : PackedByteArray = client_proxy.get_packet()
-				if _proxy_socket.get_packet_error()!=OK:
-					return
-				print("Client on channel %d has packet, forwarding" % [channel])
-				# The server has sent a packet to this client proxy - forward
-				# it on to the actual client through the correct TURN channel
-				send_channel_data(channel, packet)
-	elif _proxy_socket!=null && _proxy_socket.get_available_packet_count() > 0:
-		var packet : PackedByteArray = _proxy_socket.get_packet()
-		if _proxy_socket.get_packet_error()!=OK:
-			return
-		# If we are a client, the packet will always be destined for the server
-		if _proxy_mode == ProxyMode.Client:
-			# Assume that if we are a client only a single channel for the 
-			# server should have been created
-			if _active_channels.size() > 1:
-				print("Unable to forward packet as more than 1 channel")
-				return 
-			print("forwarding ENet packet on to server as channel data")
-			var server_channel : int = _active_channels.keys()[0]
-			send_channel_data(server_channel, packet)
-		
-		# If we are a server, we need to figure out what client the packet
-		# is destined for and then look up the correct channel - could we 
-		# peek inside and get the peer ID?
-		elif _proxy_mode == ProxyMode.Server:
-			pass
-#			print ("forwarding packet from Enet server to client..")
-#			var possible_peer_number : int = packet.decode_u16(0)
-#			print("- possible ENet peer number: %d" % [possible_peer_number])
-#			if !_proxy_enet_peer_mapping.has(possible_peer_number):
-#				print("- couldn't find channel mapping :(")
-#			var client_channel : int = _proxy_enet_peer_mapping[possible_peer_number]
-#			print("- sending on channel: %d" % [_proxy_enet_peer_mapping[possible_peer_number]])
-#			send_channel_data(client_channel, packet)
 	
 func send_allocate_request() -> void:
 	if _state != State.Idle:
@@ -154,17 +98,8 @@ func send_channel_data(channel_number : int, data : PackedByteArray) -> void:
 	buffer.big_endian = true
 	buffer.put_16(channel_number)
 	buffer.put_16(data.size())
-	# "Over UDP, the padding is not required but MAY be included." - maybe do this?
 	buffer.put_data(data)
 	_peer.send_bytes(buffer.get_data_array())
-	
-func set_server_proxy_socket(proxy_socket : PacketPeerUDP) -> void:
-	_proxy_mode = ProxyMode.Server
-	_proxy_socket = proxy_socket
-	
-func set_client_proxy_socket(proxy_socket : PacketPeerUDP) -> void:
-	_proxy_mode = ProxyMode.Client
-	_proxy_socket = proxy_socket
 
 func _send_refresh() -> void:
 	var msg := StunMessage.new(StunMessage.Type.REFRESH_REQUEST, StunTxnId.new_random())
@@ -282,35 +217,5 @@ func _handle_bytes_received(buffer : StreamPeerBuffer) -> void:
 		return
 		
 	var raw_data : PackedByteArray = get_data_res[1]
-
-	print("Channel data message received of length ", length)
-	
-	## If there is a proxy socket active, send on the raw packet data
-	if _proxy_socket!=null:
-		print("sending packet on to proxy")
-		# TODO if we are the server, we'll need to inspect this and extract
-		# the ENet peer ID so we can map it back to the channel in the poll 
-		# method?
-		if _proxy_mode == ProxyMode.Server:
-			print("forwarding received packet from TURN to to ENet server")
-			# Set up a new proxy socket for this client
-			if !_proxy_client_sockets.has(channel):
-				print("- this client does not have a proxy socket, making a new one")
-				var socket : PacketPeerUDP = PacketPeerUDP.new()
-				socket.connect_to_host("127.0.0.1", 4433)
-				_proxy_client_sockets[channel] = socket
-			_proxy_client_sockets[channel].put_packet(raw_data)
-		elif _proxy_mode == ProxyMode.Client:
-			print("forwarding received packet from TURN to ENet client")
-			_proxy_socket.put_packet(raw_data)
-			
-			#var possible_peer_number : int = raw_data.decode_u16(0)
-#			var possible_peer_number : int = buffer.get_u16()
-#			print("Possible ENet peer number received from server: %d" % [possible_peer_number])
-#			if !_proxy_enet_peer_mapping.has(possible_peer_number):
-#				print("- mapped to channel: %d" % [channel])
-#				_proxy_enet_peer_mapping[possible_peer_number] = channel
-#				_proxy_socket.put_packet(raw_data)
-	
+				
 	emit_signal("channel_data", channel, raw_data)
-	

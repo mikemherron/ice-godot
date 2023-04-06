@@ -417,12 +417,15 @@ offset_right = 180.0
 offset_bottom = 148.0
 text = "Start as Client"
 
-[node name="ServerAddress" type="LineEdit" parent="ENet"]
+[node name="Label" type="Label" parent="ENet"]
 layout_mode = 0
-offset_left = 205.0
+offset_left = 195.0
 offset_top = 117.0
-offset_right = 438.0
-offset_bottom = 146.0
+offset_right = 465.0
+offset_bottom = 183.0
+text = "Server address not required, Client 
+will assume that first bound channel
+is the server"
 
 [connection signal="button_down" from="Turn/Settings/Connect" to="." method="_on_connect_button_down"]
 [connection signal="button_down" from="Turn/Controls/Channels/Button" to="." method="_on_button_button_down"]
