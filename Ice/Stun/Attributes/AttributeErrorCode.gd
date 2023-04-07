@@ -18,7 +18,7 @@ func read_from_buffer(buffer: StreamPeerBuffer, size: int, msg: StunMessage) -> 
 	var error_class : int = buffer.get_u16()
 	var error_number : int = buffer.get_u8()
 	code = (error_class * 100) + error_number
-	reason = buffer.get_utf8_string() if size > CODE_SIZE else ""
+	reason = buffer.get_utf8_string(size - CODE_SIZE) if size > CODE_SIZE else ""
 	_skip_padding(buffer, size)
 	
 func write_to_buffer(buffer: StreamPeerBuffer, msg: StunMessage) -> void:
